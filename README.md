@@ -22,7 +22,6 @@ A Go-based AI agent application that provides a conversational interface powered
 
 ```bash
 git clone https://github.com/golem-collective/golem.git
-cd golem-agent
 ```
 
 ### 2. Set up the database
