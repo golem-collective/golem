@@ -2,16 +2,12 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
-	"strconv"
+	"strings"
 
 	"ai-agent-app/services" // Import the services package
-
-	"github.com/gorilla/mux"
 )
 
 // ChatResponse represents the structure of the chat response
@@ -20,85 +16,168 @@ type ChatResponse struct {
 }
 
 // Global chat history for web requests
-var webChatHistory = services.NewChatHistory(10)
+// var webChatHistory = services.NewChatHistory(10)
 
 // ChatWithAgent handles chat requests with the agent
-func ChatWithAgent(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	agentIDStr := vars["agentID"]
+// func ChatWithAgent(w http.ResponseWriter, r *http.Request) {
+// 	vars := mux.Vars(r)
+// 	agentIDStr := vars["agentID"]
 
-	// Validate and convert agentID to integer
-	if agentIDStr == "" {
-		http.Error(w, "agentID is required", http.StatusBadRequest)
-		return
-	}
-	
-	agentID, err := strconv.Atoi(agentIDStr)
-	if err != nil {
-		http.Error(w, "Invalid agent ID", http.StatusBadRequest)
-		return
-	}
+// 	// Validate and convert agentID to integer
+// 	if agentIDStr == "" {
+// 		http.Error(w, "agentID is required", http.StatusBadRequest)
+// 		return
+// 	}
 
-	// Extract the message from the request body
-	var requestBody struct {
-		Message string `json:"message"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
-		log.Printf("Error decoding request body: %v", err)
-		return
-	}
+// 	agentID, err := strconv.Atoi(agentIDStr)
+// 	if err != nil {
+// 		http.Error(w, "Invalid agent ID", http.StatusBadRequest)
+// 		return
+// 	}
 
-	// Validate the message
-	if requestBody.Message == "" {
-		http.Error(w, "Message is required", http.StatusBadRequest)
-		return
-	}
+// 	// Extract the message from the request body
+// 	var requestBody struct {
+// 		Message string `json:"message"`
+// 	}
+// 	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+// 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+// 		log.Printf("Error decoding request body: %v", err)
+// 		return
+// 	}
 
-	// Add user message to history
-	webChatHistory.AddMessage(agentID, "user", requestBody.Message)
+// 	// Validate the message
+// 	if requestBody.Message == "" {
+// 		http.Error(w, "Message is required", http.StatusBadRequest)
+// 		return
+// 	}
 
-	// Get the conversation history
-	history := webChatHistory.GetHistory(agentID)
+// 	// Add user message to history
+// 	webChatHistory.AddMessage(agentID, "user", requestBody.Message)
 
-	// Use the OpenAI API to generate a response
-	responseMessage, err := services.SendMessageToOpenAI(
-		os.Getenv("OPENAI_API_KEY"),
-		requestBody.Message,
-		history,
-	)
+// 	// Get the conversation history
+// 	history := webChatHistory.GetHistory(agentID)
 
-	if err != nil {
-		http.Error(w, "Error communicating with the agent", http.StatusInternalServerError)
-		log.Printf("Error communicating with agent %d: %v", agentID, err)
-		return
-	}
+// 	// Define the context template with conversation history
+// 	template := `You are {{name}}, an AI assistant.
+// {{description}}
+// You specialize in {{specialty}}.
+// Communication style: {{style}}
+// Follow these rules:
+// {{rules}}
 
-	// Add the assistant's response to history
-	webChatHistory.AddMessage(agentID, "assistant", responseMessage)
+// Previous conversation:
+// {{history}}
 
-	// Log the chat request
-	log.Printf("Chat request for agentID: %d, message: %s", agentID, requestBody.Message)
+// Current request:
+// `
 
-	// Send response
-	response := ChatResponse{
-		Message: responseMessage,
-	}
+// 	agent, err := services.GetAgentByID(agentID)
+// 	// Create state map for context variables
+// 	state := map[string]string{
+// 		"name":        agent.Name,
+// 		"description": agent.Description,
+// 		"specialty":   agent.System,
+// 		"style":       "professional and helpful",
+// 		"rules":       "1. Be concise\n2. Be accurate\n3. Be helpful",
+// 		"history":     formatHistory(history), // You'll need to implement this
+// 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
-}
+// 	// Use the OpenAI API to generate a response
+// 	responseMessage, err := services.SendMessageToOpenAI(
+// 		os.Getenv("OPENAI_API_KEY"),
+// 		requestBody.Message,
+// 		template,
+// 		state,
+// 	)
+
+// 	if err != nil {
+// 		http.Error(w, "Error communicating with the agent", http.StatusInternalServerError)
+// 		log.Printf("Error communicating with agent %d: %v", agentID, err)
+// 		return
+// 	}
+
+// 	// Add the assistant's response to history
+// 	webChatHistory.AddMessage(agentID, "assistant", responseMessage)
+
+// 	// Log the chat request
+// 	log.Printf("Chat request for agentID: %d, message: %s", agentID, requestBody.Message)
+
+// 	// Send response
+// 	response := ChatResponse{
+// 		Message: responseMessage,
+// 	}
+
+// 	w.Header().Set("Content-Type", "application/json")
+// 	json.NewEncoder(w).Encode(response)
+// }
 
 // ConsoleChatWithAgent handles chat interactions from the console
 func ConsoleChatWithAgent(agentID int, message string, chatHistory *services.ChatHistory) (string, error) {
 	// Get the conversation history
 	history := chatHistory.GetHistory(agentID)
-	
+
+	agent, err := services.GetAgentByID(agentID)
+
+	if err != nil {
+		return "", fmt.Errorf("error retrieving agent %d: %v", agentID, err)
+	}
+
+	personality, err := services.LoadPersonality(agent.Name)
+
+	if err != nil {
+		return "", fmt.Errorf("error loading personality: %w", err)
+	}
+
+	template := `You are {{name}}, an AI assistant.
+		{{description}}
+		{{system}}
+		
+		Background:
+		{{bio}}
+		
+		Experience:
+		{{lore}}
+		
+		Expertise:
+		{{knowledge}}
+		
+		Communication style:
+		{{style}}
+		
+		Instructions:
+		{{instructions}}
+		
+		Chat history:
+		{{history}}
+		
+		Adjectives:
+		{{adjectives}}
+		
+		Instructions:
+		{{instructions}}
+		
+		`
+
+	// Create state map for context variables
+	state := map[string]string{
+		"name":         agent.Name,
+		"description":  personality.Description,
+		"specialty":    personality.System,
+		"history":      formatChatHistory(history),
+		"style":        strings.Join(personality.Style.Chat, "\n"),
+		"bio":          strings.Join(personality.Bio, "\n"),
+		"lore":         strings.Join(personality.Lore, "\n"),
+		"knowledge":    strings.Join(personality.Knowledge, "\n"),
+		"adjectives":   strings.Join(personality.Adjectives, "\n"),
+		"instructions": personality.Instructions,
+	}
+
 	// Use the OpenAI API to generate a response
 	responseMessage, err := services.SendMessageToOpenAI(
 		os.Getenv("OPENAI_API_KEY"),
 		message,
-		history,
+		template,
+		state,
 	)
 
 	if err != nil {
@@ -109,4 +188,23 @@ func ConsoleChatWithAgent(agentID int, message string, chatHistory *services.Cha
 	log.Printf("Console chat request for agentID: %d, message: %s", agentID, message)
 
 	return responseMessage, nil
+}
+
+// formatHistory converts the chat history array to a formatted string
+func formatHistory(history []services.Message) string {
+	if len(history) == 0 {
+		return "No previous conversation."
+	}
+
+	var formattedHistory string
+	for _, msg := range history {
+		formattedHistory += fmt.Sprintf("%s: %s\n", msg.Role, msg.Content)
+	}
+
+	return formattedHistory
+}
+
+// formatChatHistory is an alias for formatHistory for consistency
+func formatChatHistory(history []services.Message) string {
+	return formatHistory(history)
 }

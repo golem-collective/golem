@@ -4,6 +4,7 @@ import (
 	"ai-agent-app/models"
 	"ai-agent-app/services"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 )
@@ -44,16 +45,15 @@ func CreateAgent(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateDefaultAgent creates a default agent and returns its ID
-func CreateDefaultAgent() (int, error) {
+func CreateDefaultAgent(agentName string) (int, error) {
 	// Create a default agent
 	agent := models.Agent{
-		Name: "Console Agent",
-		Type: "openai",
+		Name: agentName,
 	}
 
-	// Save the agent to the database
+	// Call the service to save the agent to the database
 	if err := services.CreateAgent(&agent); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to create default agent: %w", err)
 	}
 
 	return agent.ID, nil

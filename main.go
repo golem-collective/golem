@@ -48,13 +48,17 @@ func main() {
 	// Initialize chat history service
 	chatHistory := services.NewChatHistory(10) // Keep last 10 messages
 
-	// Create a default agent
-	agentID, err := handlers.CreateDefaultAgent()
+	// Prompt for agent name
+	agentName := promptForAgentName()
+
+	// Create default agent with the provided name
+	agentID, err := handlers.CreateDefaultAgent(agentName)
 	if err != nil {
-		log.Fatalf("Failed to create agent: %v", err)
+		log.Fatalf("Failed to create default agent: %v", err)
 	}
 
-	fmt.Printf("Agent created with ID: %d\n", agentID)
+	log.Printf("Created agent with ID: %d and name: %s", agentID, agentName)
+
 	fmt.Println("Start chatting with the agent (type 'exit' to quit, 'clear' to clear history):")
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -95,4 +99,20 @@ func main() {
 	if err := scanner.Err(); err != nil {
 		log.Printf("Error reading input: %v", err)
 	}
+}
+
+// promptForAgentName asks the user to input a name for the agent
+func promptForAgentName() string {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Enter a name for your agent (or press Enter for default 'Console Agent'): ")
+	name, err := reader.ReadString('\n')
+	if err != nil {
+		log.Printf("Error reading input: %v. Using default name.", err)
+		return ""
+	}
+
+	// Trim whitespace and newlines
+	name = strings.TrimSpace(name)
+
+	return name
 }

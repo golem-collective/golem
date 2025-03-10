@@ -55,9 +55,7 @@ func CreateAgentsTable() error {
 	query := `
 	CREATE TABLE IF NOT EXISTS agents (
 		id SERIAL PRIMARY KEY,
-		name VARCHAR(255) NOT NULL,
-		type VARCHAR(50) NOT NULL,
-		context TEXT
+		name VARCHAR(255) NOT NULL
 	);`
 	_, err := db.Exec(query)
 	if err != nil {
